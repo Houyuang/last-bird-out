@@ -1,3 +1,7 @@
+[![make.fun · turkey-run-game-01](https://make.fun/badge/turkey-run-game-01.svg)](https://make.fun/bounty/turkey-run-game-01?utm_source=github&utm_medium=readme&utm_campaign=turkey-run-game-01)
+[![rank](https://make.fun/badge/turkey-run-game-01/Houyuang/last-bird-out/rank.svg)](https://make.fun/bounty/turkey-run-game-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=turkey-run-game-01)
+[![reward](https://make.fun/badge/turkey-run-game-01/Houyuang/last-bird-out/reward.svg)](https://make.fun/bounty/turkey-run-game-01?utm_source=github&utm_medium=readme&utm_campaign=turkey-run-game-01)
+
 # LAST BIRD OUT
 
 A 2D canvas turkey escape runner. Thanksgiving is coming and you are the main course: sprint 3000 metres from the farmyard to the safety of the woods before the farmer — and, from the Barn onwards, his dog — run you down. The escape crosses four zones that shift as you run: the Farmyard by day, the Barn at dusk, the Kitchen at night, and the Woods at dawn. Graze corn and golden feathers, dodge flame vents and puddles, and don't get caught: you have 3 hearts.
