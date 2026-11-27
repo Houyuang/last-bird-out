@@ -150,6 +150,24 @@ const Obstacles = (() => {
     // golden feathers + kitchen chilis at fixed dramatic spots
     for (const fm of [392, 845, 1268, 1742, 2166, 2574, 2888]) push('feather', fm + rnd() * 8, { yOff: 74 });
     for (const cm of [1785, 2070, 2345]) push('chili', cm, { yOff: 40 });
+    // v2 fairness pass: the Kitchen's hardest beat is the flame pair at
+    // ~2003 m — an overhead jet (slide under it) immediately followed by
+    // a floor jet (jump it) 21.2 m later. Slide-exit + re-jump inside the
+    // second jet's 0.5 s telegraph was frame-tight; widen the gap by 3 m
+    // (21.2 -> 24.2 m) so a standard player gets a real landing window.
+    // It stays the tightest flame sequence on the course.
+    {
+      const head = ents.find((e) => e.type === 'flameO' && e.m > 1998 && e.m < 2010);
+      const tail = head && ents.find((e) => e.type === 'flameF' && e.m > head.m && e.m < head.m + 30);
+      if (tail) {
+        const shiftM = 3, tailM = tail.m;
+        for (const e of ents) {
+          const ridesWithTail = e === tail ||
+            (e.type === 'corn' && e.m >= tailM - 1.2 && e.m <= tailM + 2.6);
+          if (ridesWithTail) { e.m += shiftM; e.x += shiftM * PX_PER_M; }
+        }
+      }
+    }
     // Story props & distance signposts (non-colliding set dressing).
     for (const dm of [500, 1000, 1500, 2000, 2500]) push('sign', dm, { label: dm + ' m', kind: 'dist' });
     push('sign', 792, { label: 'KENNEL', sub: 'BEWARE OF DOG', kind: 'story' });

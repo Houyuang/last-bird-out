@@ -54,8 +54,11 @@
     featherSlowT: 0, chiliT: 0, puddle: false, bannerT: 0, speedNow: 0,
     ovenSparkT: 0, winConfettiT: 0, fast: FAST,
     tailLag: 0, tailLagV: 0, prevSpeed: 0,
-    corn: 0, hitsTaken: 0, runTime: 0, caughtIdx: 0, runCount: 0,
+    corn: 0, feathers: 0, hitsTaken: 0, runTime: 0, caughtIdx: 0, runCount: 0,
     bubble: null, dogBubbleAt: 0, popups: [], hitLog: [],
+    // v2 systems (js/systems.js)
+    combo: Combo.create(), nearMiss: NearMiss.create(), wind: Wind.create(),
+    slowT: 0, windLeafAcc: 0,
   };
 
   // Best score/distance, persisted when storage exists. file:// and
@@ -88,7 +91,9 @@
     G.scroll = 0; G.distM = 0; G.score = 0; G.hearts = 3; G.proximity = 0;
     G.zone = 0; G.hitStop = 0; G.trauma = 0; G.featherSlowT = 0; G.chiliT = 0;
     G.puddle = false; G.stateT = 0;
-    G.corn = 0; G.hitsTaken = 0; G.runTime = 0; G.popups.length = 0;
+    G.corn = 0; G.feathers = 0; G.hitsTaken = 0; G.runTime = 0; G.popups.length = 0;
+    G.combo = Combo.create(); G.nearMiss = NearMiss.create(); G.wind = Wind.create();
+    G.slowT = 0; G.windLeafAcc = 0;
     G.bubble = null; G.dogBubbleAt = 0;
     G.caughtIdx = G.runCount % 3; G.runCount++;
     G.farmerX = PLAYER_X - 320; G.dogX = -120;
@@ -140,6 +145,8 @@
       if (GODMODE || G.state !== 'play') return;
       G.hearts -= 1;
       G.hitsTaken += 1;
+      if (G.combo.mult >= 3) popup(G.scroll + PLAYER_X, player.y - 84, 'STREAK LOST', '#c9c2b4');
+      Combo.onDamage(G.combo); // a hit breaks the corn streak
       G.hitLog.push({ type: e.type, m: Math.round(G.distM), prox: Math.round(G.proximity) });
       G.proximity = Math.min(100, G.proximity + 25);
       G.hitStop = 0.05;                       // 50 ms hit-stop
@@ -160,11 +167,14 @@
     pickup(e) {
       const sx = e.x - G.scroll + e.w / 2, sy = GROUND_Y - (e.yOff || 40);
       if (e.type === 'corn') {
-        G.score += 100; G.corn += 1;
-        popup(e.x + e.w / 2, sy - 16, '+100');
-        AudioFX.pickup(); Particles.sparks(sx, sy, 7);
+        const mult = Combo.onCorn(G.combo);
+        const gained = 100 * mult;
+        G.score += gained; G.corn += 1;
+        popup(e.x + e.w / 2, sy - 16, '+' + gained + (mult > 1 ? ' x' + mult : ''));
+        if (mult > 1) AudioFX.combo(mult); else AudioFX.pickup();
+        Particles.sparks(sx, sy, 7);
       } else if (e.type === 'feather') {
-        G.score += 250;
+        G.score += 250; G.feathers += 1;
         popup(e.x + e.w / 2, sy - 16, '+250', '#ffe27a');
         G.proximity = Math.max(0, G.proximity - 25);
         G.featherSlowT = 3;
@@ -249,6 +259,9 @@
   function updatePlay(dt) {
     G.time += dt;
     G.runTime += dt;
+    Combo.update(G.combo, dt);
+    NearMiss.update(G.nearMiss, dt);
+    Wind.update(G.wind, dt, G.zone === 3);
     if (Input.take('pause')) { G.state = 'pause'; return; }
     if (Input.take('restart')) { reset(true); return; }
 
@@ -260,6 +273,7 @@
     let speed = baseSpeed(G.distM) * FAST;
     if (player.dashT > 0) speed *= 1.55;
     if (G.chiliT > 0) speed *= 1.3;
+    if (G.zone === 3) speed *= Wind.speedFactor(G.wind); // Woods gusts push/pull the run
     if (player.stumbleT > 0) speed *= 0.55;
     if (G.puddle) speed *= 0.55;
     if (hiding) speed *= 0.45;
@@ -337,6 +351,32 @@
     G.dogX += (dTarget - G.dogX) * Math.min(1, dt * 2.4);
     if (dogWasOut && G.dogX > -60 && G.zone >= 1) AudioFX.bark(); // he announces himself
     G.dogPhase += dt * speed * 0.075;
+
+    // near miss: skimming a chaser pays out and buys a beat of slow motion
+    const nmHits = NearMiss.check(G.nearMiss, {
+      farmerGap: PLAYER_X - G.farmerX,
+      dogGap: PLAYER_X - G.dogX,
+      dogActive: G.zone >= 1 && G.dogX > -60,
+    });
+    for (let i = 0; i < nmHits.length; i++) {
+      G.score += NearMiss.POINTS;
+      G.slowT = NearMiss.SLOW_TIME;
+      popup(G.scroll + PLAYER_X + 34, player.y - 96, 'CLOSE! +' + NearMiss.POINTS, '#ff6b9d');
+      AudioFX.nearMiss();
+    }
+
+    // Woods weather made visible: leaves drift in as the warning, then
+    // stream hard in the gust's own direction while it blows.
+    if (G.zone === 3) {
+      const w = G.wind;
+      const rate = w.phase === 'gust' ? 30 : w.phase === 'warn' ? 8 : 2.2;
+      G.windLeafAcc += dt * rate;
+      while (G.windLeafAcc >= 1) {
+        G.windLeafAcc -= 1;
+        const drift = w.phase === 'calm' ? 26 : 46 + 330 * w.strength;
+        Particles.leaves(w.dir > 0 ? -18 : W + 18, 150 + Math.random() * 360, 1, w.dir * drift);
+      }
+    }
 
     // ambient oven sparks in the kitchen
     if (G.zone === 2) {
@@ -670,6 +710,13 @@
     ctx.fillStyle = '#ffd98a';
     ctx.font = '12px ui-monospace, Menlo, monospace';
     ctx.fillText(World.ZONE_INFO[G.zone].name, 30, 102);
+    // combo streak (v2): multiplier beside the zone name, window as a bar
+    if (G.combo.streak > 0) {
+      ctx.fillStyle = G.combo.mult >= 3 ? '#ffb03a' : '#ffd94d';
+      ctx.font = 'bold 15px ui-monospace, Menlo, monospace';
+      ctx.fillText('COMBO x' + G.combo.mult, 158, 102);
+      bar(268, 93, 66, 8, Combo.frac(G.combo), '#ffb03a');
+    }
     // right panel: farmer proximity + dash stamina
     ctx.fillStyle = 'rgba(20,12,6,0.55)';
     ctx.fillRect(W - 346, 18, 330, 94);
@@ -697,6 +744,31 @@
       ctx.font = 'bold 13px ui-monospace, Menlo, monospace';
       ctx.fillText('MUTED', W - 76, H - 16);
     }
+    if (G.zone === 3) drawWindChip();
+  }
+  // Woods wind indicator: a chip under the right HUD panel, live only in
+  // zone 4 — calm / rising (the leaf-drift warning) / gust direction.
+  function drawWindChip() {
+    const w = G.wind;
+    ctx.fillStyle = 'rgba(20,12,6,0.55)';
+    ctx.fillRect(W - 346, 122, 330, 30);
+    ctx.font = 'bold 13px ui-monospace, Menlo, monospace';
+    let label, color;
+    if (w.phase === 'warn') {
+      color = Math.floor(G.time * 5) % 2 === 0 ? '#ffb03a' : '#ffe9b0';
+      label = w.dir > 0 ? 'RISING >>' : '<< RISING';
+    } else if (w.phase === 'gust') {
+      const arrows = (w.dir > 0 ? '>' : '<').repeat(1 + Math.round(w.strength * 2));
+      label = w.dir > 0 ? 'TAILWIND ' + arrows : arrows + ' HEADWIND';
+      color = w.dir > 0 ? '#2ecc71' : '#ff9a3c';
+    } else {
+      label = 'CALM';
+      color = 'rgba(255,247,232,0.6)';
+    }
+    ctx.fillStyle = 'rgba(255,247,232,0.85)';
+    ctx.fillText('WIND', W - 332, 142);
+    ctx.fillStyle = color;
+    ctx.fillText(label, W - 268, 142);
   }
   // Speech bubble over the farmer (or the dog) — in-world story delivery.
   function drawBubble() {
@@ -829,10 +901,12 @@
     panel('FREE!', '#2ecc71', [
       'The turkey bursts through the tree line into the Whispering Woods.',
       'No farmer. No dog. No oven. Just dawn — and the whole flock, waiting.',
-      'The woods remember a bird who ran.',
       '',
+      '— THE GREAT ESCAPE, BY THE NUMBERS —',
       'Final score ' + Math.floor(G.score) + '  ·  3,000 m',
-      'Time ' + fmtTime(G.runTime) + '  ·  Corn ' + G.corn + '  ·  Hits ' + G.hitsTaken,
+      'Time ' + fmtTime(G.runTime) + '  ·  Corn ' + G.corn + '  ·  Feathers ' + G.feathers,
+      'Near misses ' + G.nearMiss.count + '  ·  Best combo x' + Math.max(1, G.combo.best),
+      'Hits taken ' + G.hitsTaken + (G.hearts === 3 ? '  ·  FLAWLESS RUN!' : ''),
     ], 'PRESS R TO RUN AGAIN');
   }
 
@@ -923,12 +997,14 @@
       const fence = ents.find((e) => e.type === 'fence');
       let scrollPx = Math.max(0, fence.x - 780);
       if (name === 'run') {
-        // Frame the new set dressing: a windmill on the right third with a
-        // fence in the turkey's path. Scan scrolls until both are in frame.
+        // Frame a clean action beat: a fence in the turkey's path and NO
+        // vector windmill in frame — the painted plate already carries a
+        // windmill, and v1's shot doubled the motif (plate + vector).
+        // distM stays <= 700 m: pure Farmyard plate, clear of the 800 m
+        // zone-blend band that double-exposed v1's boundary shots.
         for (let s = 0; s <= 700 * PX_PER_M; s += 40) {
-          const wm = World.windmillXs(s).find((p) => p.x >= 830 && p.x <= 1120);
-          if (!wm) continue;
-          const f2 = ents.find((e) => e.type === 'fence' && e.x - s >= 560 && e.x - s <= 900);
+          if (World.windmillXs(s).some((p) => p.x >= -60 && p.x <= W + 60)) continue;
+          const f2 = ents.find((e) => e.type === 'fence' && e.x - s >= 600 && e.x - s <= 880);
           if (f2) { scrollPx = s; break; }
         }
       }
@@ -998,12 +1074,16 @@
       G.state = 'win'; G.stateT = 1.0;
       G.scroll = 2952 * PX_PER_M;
       G.distM = 2952; G.zone = 3;
-      G.score = 9840; G.hearts = 2; G.proximity = 12;
-      G.corn = 23; G.hitsTaken = 1; G.runTime = 97;
+      G.score = 11960; G.hearts = 2; G.proximity = 12;
+      G.corn = 23; G.feathers = 3; G.hitsTaken = 1; G.runTime = 97;
+      G.combo.best = 5; G.combo.mult = 5; G.combo.streak = 9; G.combo.timer = 1.8; // the breakdown's story
+      G.nearMiss.count = 4;
+      G.wind.phase = 'gust'; G.wind.dir = 1; G.wind.strength = 0.85; // a tailwind saw him home
       player.phase = 0.85; player.mode = 'run';
       blend.lean = 0.05; blend.legAmp = 1;
       G.farmerX = -400; G.dogX = -300; // long gone
       Particles.confetti(PLAYER_X + 60, GROUND_Y - 170, 40);
+      Particles.leaves(200, 260, 6, 180); Particles.leaves(900, 200, 5, 220);
       Particles.update(0.3);
     } else { // menu
       G.state = 'menu';
@@ -1028,6 +1108,12 @@
     get bot() { return BOT; },
     get runTime() { return G.runTime; },
     get corn() { return G.corn; },
+    get feathers() { return G.feathers; },
+    get comboMult() { return G.combo.mult; },
+    get comboBest() { return G.combo.best; },
+    get nearMisses() { return G.nearMiss.count; },
+    get windPhase() { return G.wind.phase; },
+    get windDir() { return G.wind.dir; },
     get hits() { return G.hitsTaken; },
     get hitLog() { return G.hitLog; },
     errors,
@@ -1060,12 +1146,15 @@
       if (G.state === 'menu') updateMenu(dt);
       else if (G.state === 'play') {
         if (AUTOPLAY) { if (BOT === 'standard') driveStandard(); else driveAutoplay(); }
-        updatePlay(dt);
+        // near-miss slow motion: the world runs at SLOW_SCALE while the
+        // slowT clock itself burns down in real time (0.25 s of slow-mo).
+        if (G.slowT > 0) G.slowT -= dt;
+        updatePlay(G.slowT > 0 ? dt * NearMiss.SLOW_SCALE : dt);
       } else if (G.state === 'pause') {
         if (Input.take('pause')) G.state = 'play';
         if (Input.take('restart')) reset(true);
       } else updateEnd(dt);
-      Particles.update(dt);
+      Particles.update(G.state === 'play' && G.slowT > 0 ? dt * NearMiss.SLOW_SCALE : dt);
       G.trauma = Math.max(0, G.trauma - dt * 1.7);
       if (G.bannerT > 0) G.bannerT -= dt;
       updateGrade(dt);

@@ -46,6 +46,12 @@ const Particles = (() => {
       sizeCurve: [1, 0.1],             // shrinks hard as it rises
       alphaCurve: [0.95, 0],
     },
+    leaf: {
+      shape: 'feather', r: [168, 178, 96],
+      vx: [-30, 30], vy: [-14, 30], grav: 24, drag: 0.995,
+      life: [0.9, 1.9], size: [4, 8], vr: [-5, 5],
+      sizeCurve: [1, 0.9], alphaCurve: [0.95, 0],
+    },
   };
 
   const MAX = 300; // SOP stage 10 budget: <=300 particles on screen, pool-capped
@@ -67,7 +73,7 @@ const Particles = (() => {
       p.alive = true; p.cfg = cfg;
       p.x = x + (Math.random() - 0.5) * (opt.spreadX || 22);
       p.y = y + (Math.random() - 0.5) * (opt.spreadY || 6);
-      p.vx = rnd(cfg.vx) * (opt.power || 1);
+      p.vx = rnd(cfg.vx) * (opt.power || 1) + (opt.vxAdd || 0);
       p.vy = rnd(cfg.vy) * (opt.power || 1);
       p.life = 0;
       p.maxLife = rnd(cfg.life);
@@ -87,6 +93,7 @@ const Particles = (() => {
   function chips(x, y, n) { emit('chip', x, y, n, { spreadX: 16, spreadY: 26 }); }
   function confetti(x, y, n) { emit('confetti', x, y, n, { spreadX: 240, spreadY: 50 }); }
   function ovenSparks(x, y, n) { emit('ovenSpark', x, y, n, { spreadX: 30, spreadY: 4 }); }
+  function leaves(x, y, n, vxAdd) { emit('leaf', x, y, n, { spreadX: 10, spreadY: 130, vxAdd: vxAdd || 0 }); }
 
   function update(dt) {
     for (const p of pool) {
@@ -133,5 +140,5 @@ const Particles = (() => {
       }
     }
   }
-  return { emit, dust, feathers, sparks, chips, confetti, ovenSparks, update, draw, EMITTERS };
+  return { emit, dust, feathers, sparks, chips, confetti, ovenSparks, leaves, update, draw, EMITTERS };
 })();

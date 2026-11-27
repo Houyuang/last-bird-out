@@ -25,3 +25,11 @@ mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 ## Tech
 
 Zero dependencies. Everything runs on a plain HTML canvas: all characters, animation and effects are drawn in code, layered over painted storybook backdrop plates (`game/img/plate-*.jpg`) that crossfade between zones. Sound is synthesized at runtime — no audio files, no fonts, no network requests.
+
+## What's new in v2
+
+- **Combo streaks:** chain corn pickups within 2.5 s to raise a ×1–×5 score multiplier, shown live in the HUD; getting hit or letting the timer lapse drops the streak.
+- **Near-miss bonuses:** slip past the farmer or the dog at close range for a CLOSE! bonus and a brief slow-motion beat.
+- **Woods wind:** the final zone has weather — leaf-drift warnings, then alternating tailwind and headwind gusts that honestly bend your jump arc, with a live wind readout in the HUD.
+- **Full results screen:** the WIN screen now breaks down final score, time, corn, feathers, near misses, best combo and hits taken.
+- Fairer flame pairing at the 2003–2015 m Kitchen gauntlet (still the hardest moment of the run), and a refreshed screenshot set. Full notes in `V2-CHANGES.md`; the new systems live in `game/js/systems.js` (`Combo`, `NearMiss`, `Wind`).

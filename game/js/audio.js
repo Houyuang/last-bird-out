@@ -69,6 +69,8 @@ const AudioFX = (() => {
     dash() { noise(0.18, 0.07, 1600); tone(220, 0.16, 'sawtooth', 0.02, 520); },
     smash() { noise(0.12, 0.1, 900); tone(160, 0.1, 'triangle', 0.06, 60); },
     pickup() { seq([880, 1320], 0.05, 'square', 0.03); },
+    combo(mult) { const b = 700 + mult * 110; seq([b, b * 1.335, b * 1.5], 0.045, 'square', 0.03); },
+    nearMiss() { noise(0.13, 0.05, 2600); tone(1240, 0.11, 'sine', 0.032, 590); },
     feather() { seq([1180, 1560, 1980], 0.06, 'sine', 0.035); },
     chili() { seq([660, 880, 1100, 1470], 0.045, 'square', 0.032); },
     hit() { tone(150, 0.18, 'sawtooth', 0.07, 55); noise(0.14, 0.09, 600); },
